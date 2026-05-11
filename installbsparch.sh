@@ -1,24 +1,59 @@
 #!/usr/bin/env bash
-
-set -e
+set -euo pipefail
 
 echo "========================================"
-echo " BSPWM Cyberpunk Rice Installer"
+echo "  BSPWM CYBERPUNK INSTALLER (2026)"
+echo "  Arch / EndeavourOS Compatible"
 echo "========================================"
 
 sleep 2
 
 # -------------------------------------------------
-# UPDATE SYSTEM
+# HELPERS
 # -------------------------------------------------
 
+log() {
+  echo -e "\n[+] $1\n"
+}
+
+install_if_missing() {
+  for pkg in "$@"; do
+    if ! pacman -Qi "$pkg" &>/dev/null; then
+      missing+=("$pkg")
+    fi
+  done
+
+  if [ "${#missing[@]}" -ne 0 ]; then
+    sudo pacman -S --noconfirm "${missing[@]}"
+  fi
+  missing=()
+}
+
+mkdir_safe() {
+  [ -d "$1" ] || mkdir -p "$1"
+}
+
+write_file() {
+  local file="$1"
+  shift
+  mkdir -p "$(dirname "$file")"
+  cat > "$file"
+}
+
+# -------------------------------------------------
+# SYSTEM UPDATE
+# -------------------------------------------------
+
+log "Updating system"
 sudo pacman -Syu --noconfirm
 
 # -------------------------------------------------
-# INSTALL PACKAGES
+# PACKAGES (2026 CLEAN SET)
 # -------------------------------------------------
 
-sudo pacman -S --noconfirm \
+log "Installing required packages"
+
+install_if_missing \
 bspwm \
 sxhkd \
 polybar \
@@ -34,107 +69,114 @@ lxappearance \
 materia-gtk-theme \
 papirus-icon-theme \
 ttf-font-awesome \
-ttf-iosevkaterm-nerd \
 ttf-jetbrains-mono-nerd \
 xorg-xrandr \
 xorg-xsetroot \
-wget curl unzip git
+xorg-xinit \
+wget \
+curl \
+unzip \
+git
 
 # -------------------------------------------------
-# CONFIG DIRECTORIES
+# DIRECTORY STRUCTURE
 # -------------------------------------------------
 
-mkdir -p ~/.config/bspwm
-mkdir -p ~/.config/sxhkd
-mkdir -p ~/.config/picom
-mkdir -p ~/.config/polybar
-mkdir -p ~/.config/kitty
-mkdir -p ~/.local/bin
-mkdir -p ~/Pictures/wallpapers
+log "Creating config directories"
+
+mkdir_safe ~/.config/bspwm
+mkdir_safe ~/.config/sxhkd
+mkdir_safe ~/.config/picom
+mkdir_safe ~/.config/polybar
+mkdir_safe ~/.config/kitty
+mkdir_safe ~/.local/bin
+mkdir_safe ~/Pictures/wallpapers
 
 # -------------------------------------------------
 # WALLPAPER
 # -------------------------------------------------
 
-wget -O ~/Pictures/wallpapers/rain.jpg \
-https://images.unsplash.com/photo-1500375592092-40eb2168fd21
+log "Downloading wallpaper"
+
+if [ ! -f ~/Pictures/wallpapers/rain.jpg ]; then
+  wget -q -O ~/Pictures/wallpapers/rain.jpg \
+  https://images.unsplash.com/photo-1500375592092-40eb2168fd21
+fi
 
 # -------------------------------------------------
-# BSPWMRC
+# BSPWM CONFIG
 # -------------------------------------------------
 
-cat > ~/.config/bspwm/bspwmrc << 'EOF'
+log "Writing bspwmrc"
+
+cat > ~/.config/bspwm/bspwmrc <<'EOF'
 #!/usr/bin/env bash
 
 picom &
 feh --bg-fill ~/Pictures/wallpapers/rain.jpg &
-polybar main &
+
+~/.config/polybar/launch.sh &
 
 sxhkd &
 
-bspc config border_width         0
-bspc config window_gap          10
-bspc config split_ratio         0.52
+bspc config border_width 0
+bspc config window_gap 10
+bspc config split_ratio 0.52
 
 bspc config focused_border_color "#00ffcc"
 bspc config normal_border_color "#000000"
 
-bspc config top_padding         30
-bspc config left_padding        5
-bspc config right_padding       5
-bspc config bottom_padding      5
+bspc config top_padding 30
+bspc config left_padding 5
+bspc config right_padding 5
+bspc config bottom_padding 5
 
-# DESKTOPS
 bspc monitor -d 1 2 3 4 5 6
 EOF
 
 chmod +x ~/.config/bspwm/bspwmrc
 
 # -------------------------------------------------
-# SXHKD CONFIG
+# SXHKD CONFIG (FIXED)
 # -------------------------------------------------
 
-cat > ~/.config/sxhkd/sxhkdrc << 'EOF'
+log "Writing sxhkdrc"
 
-# TERMINAL
+cat > ~/.config/sxhkd/sxhkdrc <<'EOF'
+
 super + Return
     kitty
 
-# APP LAUNCHER
 super + d
     rofi -show drun
 
-# CLOSE WINDOW
 super + shift + q
     bspc node -c
 
-# RESTART BSPWM
 super + shift + r
     bspc wm -r
 
-# FLOATING MODE
 super + shift + space
     bspc node -t floating
 
-# FOCUS WINDOWS
 super + {h,j,k,l}
     bspc node -f {west,south,north,east}
 
-# MOVE WINDOWS
 super + shift + {h,j,k,l}
     bspc node -s {west,south,north,east}
 
-# WORKSPACES
 super + {1-6}
-    bspc desktop -f '^{1-6}'
+    bspc desktop -f {1,2,3,4,5,6}
 
 EOF
 
 # -------------------------------------------------
-# PICOM CONFIG
+# PICOM (MODERN COMPATIBLE)
 # -------------------------------------------------
 
-cat > ~/.config/picom/picom.conf << 'EOF'
+log "Writing picom config"
+
+cat > ~/.config/picom/picom.conf <<'EOF'
 
 backend = "glx";
 vsync = true;
@@ -145,11 +187,8 @@ shadow-opacity = 0.35;
 
 corner-radius = 8;
 
-blur:
-{
-  method = "dual_kawase";
-  strength = 7;
-};
+blur-method = "dual_kawase";
+blur-strength = 7;
 
 opacity-rule = [
   "92:class_g = 'kitty'",
@@ -159,35 +198,16 @@ opacity-rule = [
 EOF
 
 # -------------------------------------------------
-# KITTY CONFIG
+# POLYBAR CONFIG + LAUNCHER
 # -------------------------------------------------
 
-cat > ~/.config/kitty/kitty.conf << 'EOF'
+log "Writing polybar config"
 
-font_family Iosevka Nerd Font
-font_size 11
-
-background #000000
-foreground #00ffcc
-
-background_opacity 0.82
-
-cursor #00ffcc
-selection_background #003333
-
-EOF
-
-# -------------------------------------------------
-# POLYBAR CONFIG
-# -------------------------------------------------
-
-cat > ~/.config/polybar/config.ini << 'EOF'
+cat > ~/.config/polybar/config.ini <<'EOF'
 
 [colors]
 background = #000000
 foreground = #00ffcc
-green = #00ff99
-red = #ff5555
 
 [bar/main]
 width = 100%
@@ -196,7 +216,7 @@ height = 24
 background = ${colors.background}
 foreground = ${colors.foreground}
 
-font-0 = Iosevka Nerd Font:size=10
+font-0 = JetBrainsMono Nerd Font:size=10
 
 modules-left = bspwm
 modules-center = date
@@ -208,78 +228,110 @@ type = internal/bspwm
 [module/date]
 type = internal/date
 interval = 1
-date = %A, %d %B %Y %H:%M:%S
+date = %A %d %B %Y %H:%M:%S
 
 [module/cpu]
 type = internal/cpu
+interval = 2
 format-prefix = "CPU "
 
 [module/memory]
 type = internal/memory
+interval = 2
 format-prefix = "RAM "
 
 [module/filesystem]
 type = internal/fs
 mount-0 = /
+label-mounted = %{F#00ffcc}%percentage_used%%
 
 EOF
 
-# -------------------------------------------------
-# GTK SETTINGS
-# -------------------------------------------------
+log "Writing polybar launcher"
 
-mkdir -p ~/.config/gtk-3.0
-
-cat > ~/.config/gtk-3.0/settings.ini << 'EOF'
-[Settings]
-gtk-theme-name=Arc-Dark
-gtk-icon-theme-name=Papirus-Dark
-gtk-font-name=Iosevka Nerd Font 10
-EOF
-
-# -------------------------------------------------
-# DASHBOARD SCRIPT
-# -------------------------------------------------
-
-cat > ~/.local/bin/cyber-dashboard << 'EOF'
+cat > ~/.config/polybar/launch.sh <<'EOF'
 #!/usr/bin/env bash
 
-kitty --title btop -e btop &
-sleep 1
+killall -q polybar || true
+polybar main &
+EOF
 
-kitty --title cava -e cava &
-sleep 1
+chmod +x ~/.config/polybar/launch.sh
 
-kitty --title fetch -e fastfetch &
-sleep 1
+# -------------------------------------------------
+# KITTY CONFIG
+# -------------------------------------------------
 
-kitty --title matrix -e cmatrix -b -C green &
+log "Writing kitty config"
+
+cat > ~/.config/kitty/kitty.conf <<'EOF'
+
+font_family JetBrainsMono Nerd Font
+font_size 11
+
+background #000000
+foreground #00ffcc
+
+background_opacity 0.85
+
+cursor #00ffcc
+
+EOF
+
+# -------------------------------------------------
+# GTK THEME (SAFE MODERN DEFAULT)
+# -------------------------------------------------
+
+log "Writing GTK config"
+
+mkdir_safe ~/.config/gtk-3.0
+
+cat > ~/.config/gtk-3.0/settings.ini <<'EOF'
+[Settings]
+gtk-theme-name=Materia-dark
+gtk-icon-theme-name=Papirus-Dark
+gtk-font-name=JetBrainsMono Nerd Font 10
+EOF
+
+# -------------------------------------------------
+# DASHBOARD TOOL
+# -------------------------------------------------
+
+log "Creating cyber dashboard"
+
+cat > ~/.local/bin/cyber-dashboard <<'EOF'
+#!/usr/bin/env bash
+
+setsid kitty --title btop -e btop &
+setsid kitty --title cava -e cava &
+setsid kitty --title fastfetch -e fastfetch &
+setsid kitty --title matrix -e cmatrix -b -C green &
 EOF
 
 chmod +x ~/.local/bin/cyber-dashboard
 
 # -------------------------------------------------
-# XINITRC
+# XINITRC SAFE
 # -------------------------------------------------
 
+log "Configuring xinitrc"
+
 if ! grep -q "exec bspwm" ~/.xinitrc 2>/dev/null; then
-    echo "exec bspwm" > ~/.xinitrc
+  echo "exec bspwm" >> ~/.xinitrc
 fi
 
 # -------------------------------------------------
 # DONE
 # -------------------------------------------------
 
-echo
+echo ""
 echo "========================================"
-echo " INSTALL COMPLETE"
+echo " INSTALL COMPLETE (2026 READY)"
 echo "========================================"
-echo
-echo "Start BSPWM with:"
-echo
-echo "startx"
-echo
+echo ""
+echo "Start session:"
+echo "  startx"
+echo ""
 echo "Then run:"
-echo
-echo "cyber-dashboard"
-echo
+echo "  cyber-dashboard"
+echo ""
