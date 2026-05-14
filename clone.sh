@@ -94,16 +94,16 @@ if [[ "$USB" == "$SYSTEM_DISK"* ]]; then
 fi
 
 USB_SIZE=$(lsblk -bno SIZE "$USB" | head -1)
-USB_SIZE_GB=$(echo "scale=1; $USB_SIZE / 1073741824" | bc)
+USB_SIZE_GB=$(awk "BEGIN {printf \"%.1f\", $USB_SIZE / 1073741824}")
 USED_SPACE=$(df -B1 --total / | grep total | awk '{print $3}')
-USED_GB=$(echo "scale=1; $USED_SPACE / 1073741824" | bc)
+USED_GB=$(awk "BEGIN {printf \"%.1f\", $USED_SPACE / 1073741824}")
 
 echo ""
 info "USB size:       ${USB_SIZE_GB} GB"
 info "System used:    ${USED_GB} GB"
 echo ""
 
-if (( $(echo "$USED_SPACE > $USB_SIZE" | bc -l) )); then
+if (( USED_SPACE > USB_SIZE )); then
     error "Your system (${USED_GB}GB used) is larger than the USB (${USB_SIZE_GB}GB). Use a bigger USB."
 fi
 
@@ -158,7 +158,7 @@ read -rp "Target disk to install to (e.g. /dev/sda): " DISK
 [[ ! -b "$DISK" ]] && error "$DISK is not a valid block device"
 
 DISK_SIZE=$(lsblk -bno SIZE "$DISK" | head -1)
-DISK_SIZE_GB=$(echo "scale=1; $DISK_SIZE / 1073741824" | bc)
+DISK_SIZE_GB=$(awk "BEGIN {printf \"%.1f\", $DISK_SIZE / 1073741824}")
 
 echo ""
 warn "This will ERASE $DISK (${DISK_SIZE_GB}GB) and install the system"
